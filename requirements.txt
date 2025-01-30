@@ -4,3 +4,4 @@ opencv-python>=4.8.0
 moviepy>=1.0.3
 sounddevice>=0.4.6
 pywin32>=306
+mss==9.0.1

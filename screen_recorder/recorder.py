@@ -22,23 +22,25 @@ class Recorder:
         self.frames = []
         self.audio_data = None
         
-    def start_recording(self, region=None):
+    def start_recording(self, region=None, record_audio=True):  # Add record_audio parameter
         """Start recording screen.
         
         Args:
             region: Custom region to record (left, top, right, bottom)
+            record_audio: Whether to record audio (from GUI checkbox)
         """
         if self.recording:
             return
             
         self.recording = True
         self.frames = []
-        
+
         # Start screen recording
         self.screen_recorder.start_recording(region=region)
         
-        # Start audio recording
-        self.audio_recorder.start_recording()
+        # Start audio recording only if enabled
+        if record_audio:
+            self.audio_recorder.start_recording()
         
     def stop_recording(self):
         """Stop recording and save the video file.

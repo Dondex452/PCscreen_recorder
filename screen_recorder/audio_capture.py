@@ -25,6 +25,9 @@ class AudioRecorder:
         Args:
             channels: Number of audio channels (1 for mono, 2 for stereo)
         """
+        if self.recording:
+            return
+            
         self.recording = True
         self.audio_data = []
         
@@ -36,15 +39,22 @@ class AudioRecorder:
                     self.audio_data.append(indata.copy())
         
         try:
+            # Test audio device availability first
+            devices = sd.query_devices()
+            if not any(device['max_input_channels'] > 0 for device in devices):
+                raise RuntimeError("No audio input devices found")
+
             self.stream = sd.InputStream(
                 channels=channels,
                 samplerate=self.sample_rate,
-                callback=callback
+                callback=callback,
+                blocksize=2048,  # Optimize buffer size
+                latency='low'    # Reduce latency
             )
             self.stream.start()
-        except sd.PortAudioError as e:
-            print(f"Error starting audio recording: {e}")
+        except Exception as e:
             self.recording = False
+            raise RuntimeError(f"Audio recording error: {str(e)}")
         
     def stop_recording(self):
         """Stop audio recording and return the recorded audio data."""

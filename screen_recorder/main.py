@@ -69,13 +69,27 @@ class ScreenRecorderGUI:
         self.recorder = Recorder()
         self.recording = False
         self.annotation_position = None
+        self.selected_region = None  # Add this to track region
         self.setup_ui()
-        
-        # Style configuration
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+
+        # Style config
         style = ttk.Style()
         style.configure('TButton', padding=5)
         style.configure('TFrame', padding=5)
         style.configure('TLabelframe', padding=5)
+
+    def on_close(self):
+        if self.recording:
+            self.stop_recording()
+        self.root.destroy()
+
+    def toggle_recording(self):
+        if not self.recording:
+            self.start_recording()
+        else:
+            self.stop_recording()
+
         
     def setup_ui(self):
         """Set up the user interface."""
@@ -226,13 +240,19 @@ class ScreenRecorderGUI:
         )
         
     def on_click(self, event):
-        """Handle mouse click for annotation position."""
-        # Ignore clicks on UI elements
-        if str(event.widget).startswith(str(self.root)):
-            self.annotation_position = (event.x_root, event.y_root)
-            self.position_label.configure(
-                text=f"Click position for annotation: ({event.x_root}, {event.y_root})"
-            )
+        """Fix annotation positioning relative to screen"""
+        # Add check to ignore clicks during recording
+        if self.recording:
+            return
+        
+        # Get screen coordinates properly
+        x = self.root.winfo_pointerx() - self.root.winfo_rootx()
+        y = self.root.winfo_pointery() - self.root.winfo_rooty()
+        
+        self.annotation_position = (x, y)
+        self.position_label.configure(
+            text=f"Click position for annotation: ({x}, {y})"
+        )
             
     def choose_color(self):
         """Open color picker for text color."""
@@ -301,31 +321,46 @@ class ScreenRecorderGUI:
         settings = self.get_capture_settings()
         if settings is None:
             return
-            
-        self.recording = True
-        self.record_button.configure(text="Stop Recording")
-        self.status_label.configure(text="Recording...")
+
+        # Minimize instead of withdraw to keep system tray icon
+        self.root.iconify()
         
-        # Start recording in a separate thread
-        def record():
-            self.recorder.start_recording(**settings)
+        try:
+            self.recording = True
+            self.record_button.configure(text="Stop Recording")
+            self.status_label.configure(text="Recording...")
             
-        threading.Thread(target=record, daemon=True).start()
-        
+            # Start recording in a separate thread
+            threading.Thread(
+                target=lambda: self.recorder.start_recording(**settings),
+                daemon=True
+            ).start()
+        except Exception as e:
+            self.recording = False
+            self.root.deiconify()
+            messagebox.showerror("Error", f"Failed to start recording: {str(e)}")
+
     def stop_recording(self):
         """Stop screen recording."""
+        if not self.recording:
+            return
+
         self.recording = False
-        self.record_button.configure(text="Start Recording")
         self.status_label.configure(text="Saving recording...")
         
         def save_recording():
-            video_path = self.recorder.stop_recording()
-            if video_path:
-                self.status_label.configure(text=f"Saved to: {video_path}")
-            else:
-                self.status_label.configure(text="Failed to save recording")
+            try:
+                video_path = self.recorder.stop_recording()
+                if video_path:
+                    self.status_label.configure(text=f"Saved to: {video_path}")
+                else:
+                    raise Exception("Failed to save recording")
+            except Exception as e:
+                self.status_label.configure(text=f"Error: {str(e)}")
+            finally:
+                self.root.deiconify()
+                self.record_button.configure(text="Start Recording")
                 
-        # Save recording in a separate thread
         threading.Thread(target=save_recording, daemon=True).start()
 
 def main():

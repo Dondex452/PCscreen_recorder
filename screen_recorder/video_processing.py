@@ -33,28 +33,43 @@ class VideoProcessor:
         if not frames:
             raise ValueError("No frames provided for video creation")
             
-        # Apply annotations to frames
-        annotated_frames = []
-        for frame in frames:
-            annotated_frame = self.annotation_manager.draw_annotations(frame)
-            annotated_frames.append(annotated_frame)
+        try:
+            # Apply annotations to frames
+            annotated_frames = []
+            for frame in frames:
+                annotated_frame = self.annotation_manager.draw_annotations(frame.copy())
+                annotated_frames.append(annotated_frame)
+                
+            # Create video from frames
+            clip = ImageSequenceClip(annotated_frames, fps=self.fps)
             
-        # Create video from frames
-        clip = ImageSequenceClip(annotated_frames, fps=self.fps)
-        
-        # Add audio if provided
-        if audio_path and os.path.exists(audio_path):
-            audio = AudioFileClip(audio_path)
-            clip = clip.set_audio(audio)
-        
-        # Save video
-        clip.write_videofile(self.output_path, 
-                           codec='libx264', 
-                           audio_codec='aac' if audio_path else None,
-                           temp_audiofile=os.path.join(self.temp_dir, "temp-audio.m4a"),
-                           remove_temp=True)
-        
-        return self.output_path
+            # Add audio if provided
+            if audio_path and os.path.exists(audio_path):
+                audio = AudioFileClip(audio_path)
+                clip = clip.set_audio(audio)
+            
+            # Save video with proper error handling
+            try:
+                clip.write_videofile(
+                    self.output_path,
+                    codec='libx264',
+                    audio_codec='aac' if audio_path else None,
+                    temp_audiofile=os.path.join(self.temp_dir, "temp-audio.m4a"),
+                    remove_temp=True,
+                    threads=4
+                )
+            finally:
+                clip.close()
+                if audio_path and os.path.exists(audio_path):
+                    try:
+                        os.remove(audio_path)
+                    except:
+                        pass
+            
+            return self.output_path
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to create video: {str(e)}")
         
     def trim_video(self, start_time: float, end_time: float):
         """Trim video to specified time range.
